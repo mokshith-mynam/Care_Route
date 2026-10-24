@@ -1,0 +1,6 @@
+-- Synthetic data seed guide. Local SQLite demo records are defined in backend/seedData.js.
+-- For Supabase, create a demo facility and authenticated users first, then insert records using
+-- their real auth UUIDs. Do not paste production patient data into this file.
+-- Example after creating an authorized facility:
+-- insert into public.facilities (name) values ('Synthetic Demo Clinic') returning id;
+-- Then create auth users and matching public.profiles rows before inserting patient records.

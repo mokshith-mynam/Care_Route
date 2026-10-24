@@ -42,7 +42,7 @@ Starts the Vite dev server with integrated local SQLite API middleware:
 ```bash
 npm run dev
 ```
-Open your browser at **`http://localhost:5173`**. The app connects to the embedded SQLite database (`data/careroute.db`) and automatically seeds realistic synthetic demonstration records.
+Open your browser at **`http://localhost:5173`**. The frontend is served from `frontend/`; Vite forwards `/api/*` requests to the backend API, which stores records in `database/local/careroute.db` and seeds synthetic records on first run.
 
 ### Running in Production Server Mode
 Builds the optimized production client bundle and launches the standalone Node.js HTTP server:
@@ -58,11 +58,35 @@ CAREROUTE_SESSION_SECRET="$(openssl rand -hex 32)" CAREROUTE_DEMO_MODE=false npm
 ```
 `CAREROUTE_DEMO_MODE` defaults to `true` for the local synthetic demo. Production deployments must replace the demo session endpoint with a real identity provider before exposing the server publicly.
 
+## Project layout
+
+```text
+CareRoute_Startup_MVP/
+├── frontend/                  # React application and browser-only services
+│   ├── index.html              # Vite HTML entry point
+│   └── src/                    # App, components, styles, API client, rules, types
+├── backend/                   # Node.js API and production HTTP server
+│   ├── server.js               # Serves dist/ and /api/* in production
+│   ├── apiHandler.js            # REST endpoints and server-side role checks
+│   ├── db.js                    # SQLite schema, queries, seed/reset operations
+│   ├── seedData.js              # Fictional demo records
+│   └── tests/                   # API and security tests
+├── database/                  # Database files and schema assets
+│   ├── local/careroute.db       # Local SQLite database (created on first run)
+│   ├── migrations/              # Supabase PostgreSQL schema migration
+│   └── scripts/                 # Supabase demo seeding notes
+├── dist/                      # Production frontend build output
+├── vite.config.ts              # Wires Vite frontend and backend API middleware
+└── package.json                # Shared install/build/run commands
+```
+
+The frontend calls the backend through `frontend/src/apiClient.ts`. During development, the middleware in `vite.config.ts` sends `/api/*` requests to `backend/apiHandler.js`. In production, `backend/server.js` serves the built frontend and uses the same API handler. The SQLite database lives under `database/local/`; the PostgreSQL migration in `database/migrations/` is for the optional Supabase backend.
+
 ---
 
 ## 🧪 Testing & Code Quality
 
-CareRoute includes comprehensive automated test suites covering routing rules, edge cases, and backend RBAC security:
+CareRoute includes automated test suites covering routing rules, edge cases, and backend RBAC security:
 
 ```bash
 # Run unit & API integration test suites (Vitest)
@@ -76,8 +100,8 @@ npm run lint
 ```
 
 ### Test Coverage Highlights
-- `src/rules.test.ts`: Validates overdue calculations, due-today logic, unconfirmed referral detection, explainable reason generators, and coordination insights generation.
-- `tests/api_rbac.test.ts`: Starts an ephemeral HTTP test server against SQLite and verifies that:
+- `frontend/src/rules.test.ts`: Validates overdue calculations, due-today logic, unconfirmed referral detection, explainable reason generators, and coordination insights generation.
+- `backend/tests/api_rbac.test.ts`: Exercises the API handler against SQLite and verifies that:
   - Public endpoints (`/api/health`, `/api/patients`, `/api/follow-ups`, `/api/referrals`, `/api/audit-events`) return valid data.
   - Updating routing rules as a `Health worker` returns **HTTP 403 Forbidden**.
   - Updating routing rules as a `Clinical reviewer` returns **HTTP 403 Forbidden**.
@@ -87,44 +111,7 @@ npm run lint
 
 ## 🔒 Architecture & Data Storage
 
-```text
-CareRoute_Startup_MVP/
-├── data/
-│   └── careroute.db             # Local relational SQLite database file (created on launch)
-├── src/
-│   ├── components/              # Modular UI components
-│   │   ├── DashboardView.tsx    # Live operational metric counters & priority work queues
-│   │   ├── PatientsView.tsx     # Patient directory, search, and detail drawer
-│   │   ├── FollowUpsView.tsx    # Routine follow-up list, status update, & reschedule modals
-│   │   ├── ReferralsView.tsx    # Referral registry & loop closure tracker
-│   │   ├── NeedsAttentionView.tsx # Explainable coordination gap insights
-│   │   ├── SupervisorAnalyticsView.tsx # Workload distribution & facility turnaround
-│   │   ├── RulesConfigView.tsx  # Interactive rule threshold configuration with live preview
-│   │   ├── TimelineView.tsx     # Chronological audit stream of coordination events
-│   │   ├── ExportModal.tsx      # Printable minimum-necessary coordination summary
-│   │   ├── StorageInfoModal.tsx # Local SQLite storage inspector, reset & purge controls
-│   │   ├── CreateModals.tsx     # Modals for new patients, follow-ups, and referrals
-│   │   ├── Sidebar.tsx          # Navigation, role switcher, language, & contrast toggles
-│   │   └── TopBar.tsx           # Demo watermark, connection status, & offline simulation
-│   ├── server/
-│   │   ├── db.js                # SQLite schema migration, queries, seed, reset & purge
-│   │   ├── apiHandler.js        # REST API endpoints & server-side RBAC enforcement
-│   │   └── seedData.js          # Realistic synthetic test data (12 patients, tasks, referrals)
-│   ├── apiClient.ts             # Client API wrapper with offline queue fallback
-│   ├── demoData.ts              # Client fallback seed data and mock structures
-│   ├── i18n.ts                  # Localization dictionaries (EN, ES, SW, HI)
-│   ├── rules.ts                 # Pure administrative routing & insight calculation logic
-│   ├── types.ts                 # TypeScript type definitions for domain entities
-│   ├── App.tsx                  # Root application controller and modal orchestrator
-│   └── styles.css               # Accessible, responsive CSS design system
-├── tests/
-│   └── api_rbac.test.ts         # Server-side HTTP RBAC test suite
-├── server.js                    # Standalone Node.js HTTP server for production
-├── vite.config.ts               # Vite configuration with embedded dev API middleware
-└── README.md
-```
-
-### Relational Schema (`data/careroute.db`)
+### Relational Schema (`database/local/careroute.db`)
 - `patients`: Demographics, contact method, caregiver name/phone, preferred language, enrollment date.
 - `observations`: Non-diagnostic basic screening notes (e.g. routine checkup date, adherence barrier category, administrative notes).
 - `consents`: Caregiver consent documentation, relation, and purpose.
@@ -153,7 +140,7 @@ Switch roles using the bottom selector in the sidebar:
 
 - **Non-Diagnostic:** CareRoute does not suggest clinical diagnoses, triage acuity scores, or medications.
 - **Minimum-Necessary Data:** Displays only necessary operational data. Detailed health notes are restricted to factual non-diagnostic check-ins.
-- **Local SQLite File:** All data resides in `data/careroute.db`. Clicking **"Reset Demo Data"** in the Local Storage inspector will restore initial synthetic records; clicking **"Purge All Data"** will completely clear all tables for testing.
+- **Local SQLite File:** All data resides in `database/local/careroute.db`. Clicking **"Reset Demo Data"** in the storage inspector will restore initial synthetic records; clicking **"Purge All Data"** will completely clear all tables for testing.
 - **Offline Simulation:** Clicking "Simulate Offline" in the top bar queues updates locally in browser memory; clicking "Sync Queue" transmits them to the local SQLite server once reconnected.
 
 ---
