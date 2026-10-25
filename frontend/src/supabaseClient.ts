@@ -29,7 +29,9 @@ export function getSupabaseConfig(): SupabaseConfig {
   const anonKey = getStored(STORAGE_KEY_ANON, envAnon);
   const isConfigured = Boolean(url && anonKey && url.startsWith('http'));
 
-  let activeBackend: 'supabase' | 'sqlite' = isConfigured ? 'supabase' : 'sqlite';
+  // Keep local development on the seeded SQLite database by default. Supabase
+  // remains available when the user explicitly selects it in storage settings.
+  let activeBackend: 'supabase' | 'sqlite' = 'sqlite';
   try {
     const storedMode = localStorage.getItem(STORAGE_KEY_MODE);
     if (storedMode === 'sqlite' || storedMode === 'supabase') {
